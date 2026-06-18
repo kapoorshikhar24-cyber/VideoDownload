@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download Video - Ultimate Video Downloader</title>
+    <!-- Outfit Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <!-- Eel Script Bridge -->
+    <script type="text/javascript" src="/eel.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-area">
+                <i class="fa-solid fa-circle-nodes logo-icon"></i>
+                <div class="logo-text">
+                    <h1>Download Video</h1>
+                    <span>Video Downloader</span>
+                </div>
+            </div>
+            
+            <nav class="nav-tabs">
+                <button class="nav-tab active" data-tab="single">
+                    <i class="fa-solid fa-circle-down"></i>
+                    <span>Single Download</span>
+                </button>
+                <button class="nav-tab" data-tab="playlist">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Playlist Batch Download</span>
+                </button>
+                <button class="nav-tab" data-tab="search">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <span>YouTube Search</span>
+                </button>
+                <button class="nav-tab" data-tab="history">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span>Library History</span>
+                </button>
+            </nav>
+
+            <div class="ffmpeg-status" id="ffmpeg-badge">
+                <i class="fa-solid fa-circle-check"></i>
+                <span>FFmpeg Library Loaded</span>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- TAB 1: SINGLE DOWNLOAD -->
+            <section id="tab-single" class="tab-panel active">
+                <div class="panel-header">
+                    <h2>Single Video Download</h2>
+                    <p>Enter a YouTube or media URL to fetch details and download in high quality.</p>
+                </div>
+
+                <!-- URL input card -->
+                <div class="card glass-card">
+                    <div class="input-group">
+                        <label for="single-url">Media / Video URL</label>
+                        <div class="input-row">
+                            <div class="input-wrapper">
+                                <i class="fa-solid fa-link input-icon"></i>
+                                <input type="text" id="single-url" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+                            </div>
+                            <button id="btn-single-paste" class="btn btn-secondary" title="Paste from Clipboard">
+                                <i class="fa-solid fa-paste"></i> Paste
+                            </button>
+                            <button id="btn-single-analyze" class="btn btn-primary">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> Analyze Link
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Details & Options (hidden until analyzed) -->
+                <div id="single-placeholder" class="placeholder-container">
+                    <i class="fa-solid fa-video-slash placeholder-icon"></i>
+                    <p>Paste a media URL and click 'Analyze Link' to reveal formats and settings.</p>
+                </div>
+
+                <div id="single-details-container" class="details-container hidden">
+                    <!-- Video Info Card -->
+                    <div class="card glass-card video-info-card">
+                        <div class="video-thumbnail-wrapper">
+                            <img id="single-thumbnail" src="" alt="Thumbnail">
+                            <span id="single-badge" class="duration-badge">0:00</span>
+                        </div>
+                        <div class="video-meta">
+                            <h3 id="single-title">Video Title</h3>
+                            <div class="meta-row">
+                                <span id="single-channel"><i class="fa-solid fa-user"></i> Channel</span>
+                                <span id="single-views"><i class="fa-solid fa-eye"></i> 0 views</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Config Card -->
+                    <div class="card glass-card options-card">
+                        <h3>Download Settings</h3>
+                        
+                        <div class="options-grid">
+                            <!-- Destination Path -->
+                            <div class="option-item full-width">
+                                <label for="single-dest">Save Location</label>
+                                <div class="input-row">
+                                    <div class="input-wrapper">
+                                        <i class="fa-solid fa-folder-open input-icon"></i>
+                                        <input type="text" id="single-dest" placeholder="Select destination directory...">
+                                    </div>
+                                    <button id="btn-single-browse" class="btn btn-secondary">Browse...</button>
+                                </div>
+                            </div>
+
+                            <!-- Format Type -->
+                            <div class="option-item">
+                                <label>Format Type</label>
+                                <div class="radio-group">
+                                    <label class="radio-label">
+                                        <input type="radio" name="single-format" value="video" checked>
+                                        <span class="custom-radio"><i class="fa-solid fa-video"></i> Video (MP4)</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="single-format" value="audio">
+                                        <span class="custom-radio"><i class="fa-solid fa-music"></i> Audio (MP3)</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Quality & Ext -->
+                            <div class="option-item flex-row">
+                                <div class="flex-col">
+                                    <label for="single-quality" id="lbl-single-quality">Quality</label>
+                                    <select id="single-quality" class="select-input">
+                                        <option value="Best Quality">Best Quality</option>
+                                        <option value="1080p">1080p</option>
+                                        <option value="720p">720p</option>
+                                        <option value="480p">480p</option>
+                                        <option value="360p">360p</option>
+                                    </select>
+                                </div>
+                                <div class="flex-col">
+                                    <label for="single-ext" id="lbl-single-ext">Extension</label>
+                                    <select id="single-ext" class="select-input">
+                                        <option value="mp4">mp4</option>
+                                        <option value="mkv">mkv</option>
+                                        <option value="webm">webm</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Checkbox Options -->
+                            <div class="option-item full-width">
+                                <label>Extra Settings</label>
+                                <div class="checkbox-grid">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="single-embed-metadata" checked>
+                                        <span>Embed Metadata</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="single-embed-thumbnail" checked>
+                                        <span>Embed Thumbnail</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="single-download-subtitles">
+                                        <span>Download Subtitles (EN)</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="single-save-thumbnail">
+                                        <span>Save Thumbnail File</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action buttons -->
+                        <div class="actions-row">
+                            <button id="btn-single-download" class="btn btn-action btn-accent">
+                                <i class="fa-solid fa-download"></i> Download Video Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Card (hidden until downloading) -->
+                <div id="single-progress-card" class="card glass-card progress-card hidden">
+                    <div class="progress-header">
+                        <h3 id="single-progress-status"><i class="fa-solid fa-spinner fa-spin"></i> Initializing Download...</h3>
+                        <span id="single-progress-percent" class="percent-label">0%</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div id="single-progress-bar" class="progress-bar" style="width: 0%;"></div>
+                    </div>
+                    <div class="progress-stats">
+                        <span><i class="fa-solid fa-gauge-high"></i> Speed: <strong id="single-progress-speed">--</strong></span>
+                        <span><i class="fa-solid fa-hourglass-half"></i> ETA: <strong id="single-progress-eta">--</strong></span>
+                        <span><i class="fa-solid fa-weight-hanging"></i> Size: <strong id="single-progress-size">-- / --</strong></span>
+                    </div>
+                    <div class="progress-actions">
+                        <button id="btn-single-cancel" class="btn btn-secondary btn-cancel">
+                            <i class="fa-solid fa-xmark"></i> Cancel Download
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: PLAYLIST BATCH -->
+            <section id="tab-playlist" class="tab-panel">
+                <div class="panel-header">
+                    <h2>Playlist Batch Download</h2>
+                    <p>Enter a YouTube playlist link, select videos, and download them all in one click.</p>
+                </div>
+
+                <!-- Input card -->
+                <div class="card glass-card">
+                    <div class="input-group">
+                        <label for="playlist-url">Playlist URL</label>
+                        <div class="input-row">
+                            <div class="input-wrapper">
+                                <i class="fa-solid fa-list input-icon"></i>
+                                <input type="text" id="playlist-url" placeholder="https://www.youtube.com/playlist?list=..." autocomplete="off">
+                            </div>
+                            <button id="btn-playlist-paste" class="btn btn-secondary" title="Paste from Clipboard">
+                                <i class="fa-solid fa-paste"></i> Paste
+                            </button>
+                            <button id="btn-playlist-analyze" class="btn btn-primary">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> Analyze Playlist
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Details & Options (hidden until analyzed) -->
+                <div id="playlist-placeholder" class="placeholder-container">
+                    <i class="fa-solid fa-list-ol placeholder-icon"></i>
+                    <p>Paste a playlist link and click 'Analyze Playlist' to load individual items.</p>
+                </div>
+
+                <div id="playlist-details-container" class="details-container hidden">
+                    <!-- Playlist Meta -->
+                    <div class="playlist-meta-summary">
+                        <div class="playlist-meta-info">
+                            <h3 id="playlist-title">Playlist Title</h3>
+                            <span id="playlist-count" class="badge">0 Videos Found</span>
+                        </div>
+                        <div class="playlist-selection-controls">
+                            <button id="btn-playlist-select-all" class="btn btn-small btn-secondary">Select All</button>
+                            <button id="btn-playlist-select-none" class="btn btn-small btn-secondary">Select None</button>
+                        </div>
+                    </div>
+
+                    <!-- Scrollable Playlist Checklist -->
+                    <div class="playlist-checklist-card card glass-card">
+                        <div class="playlist-scroll-area" id="playlist-items-list">
+                            <!-- Items populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Settings Card -->
+                    <div class="card glass-card options-card">
+                        <h3>Batch Download Settings</h3>
+                        
+                        <div class="options-grid">
+                            <!-- Destination Path -->
+                            <div class="option-item full-width">
+                                <label for="playlist-dest">Save Location</label>
+                                <div class="input-row">
+                                    <div class="input-wrapper">
+                                        <i class="fa-solid fa-folder-open input-icon"></i>
+                                        <input type="text" id="playlist-dest" placeholder="Select destination directory...">
+                                    </div>
+                                    <button id="btn-playlist-browse" class="btn btn-secondary">Browse...</button>
+                                </div>
+                            </div>
+
+                            <!-- Format Type -->
+                            <div class="option-item">
+                                <label>Format Type</label>
+                                <div class="radio-group">
+                                    <label class="radio-label">
+                                        <input type="radio" name="playlist-format" value="video" checked>
+                                        <span class="custom-radio"><i class="fa-solid fa-video"></i> Video (MP4)</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="playlist-format" value="audio">
+                                        <span class="custom-radio"><i class="fa-solid fa-music"></i> Audio (MP3)</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Quality & Ext -->
+                            <div class="option-item flex-row">
+                                <div class="flex-col">
+                                    <label for="playlist-quality" id="lbl-playlist-quality">Quality</label>
+                                    <select id="playlist-quality" class="select-input">
+                                        <option value="Best Quality">Best Quality</option>
+                                        <option value="1080p">1080p</option>
+                                        <option value="720p">720p</option>
+                                        <option value="480p">480p</option>
+                                        <option value="360p">360p</option>
+                                    </select>
+                                </div>
+                                <div class="flex-col">
+                                    <label for="playlist-ext" id="lbl-playlist-ext">Extension</label>
+                                    <select id="playlist-ext" class="select-input">
+                                        <option value="mp4">mp4</option>
+                                        <option value="mkv">mkv</option>
+                                        <option value="webm">webm</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Checkbox Options -->
+                            <div class="option-item full-width">
+                                <label>Extra Settings</label>
+                                <div class="checkbox-grid">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="playlist-embed-metadata" checked>
+                                        <span>Embed Metadata</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="playlist-embed-thumbnail" checked>
+                                        <span>Embed Thumbnail</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="playlist-download-subtitles">
+                                        <span>Download Subtitles (EN)</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="playlist-save-thumbnail">
+                                        <span>Save Thumbnail File</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action buttons -->
+                        <div class="actions-row">
+                            <button id="btn-playlist-download" class="btn btn-action btn-accent">
+                                <i class="fa-solid fa-download"></i> Download Selected Videos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Playlist Progress Card (hidden until downloading) -->
+                <div id="playlist-progress-card" class="card glass-card progress-card hidden">
+                    <div class="playlist-progress-info">
+                        <h3 id="playlist-progress-overall">Downloading Video 0 of 0...</h3>
+                        <p id="playlist-progress-status"><i class="fa-solid fa-spinner fa-spin"></i> Loading metadata...</p>
+                    </div>
+                    <div class="progress-header">
+                        <span>Current Video Progress</span>
+                        <span id="playlist-progress-percent" class="percent-label">0%</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div id="playlist-progress-bar" class="progress-bar" style="width: 0%;"></div>
+                    </div>
+                    <div class="progress-stats">
+                        <span><i class="fa-solid fa-gauge-high"></i> Speed: <strong id="playlist-progress-speed">--</strong></span>
+                        <span><i class="fa-solid fa-hourglass-half"></i> ETA: <strong id="playlist-progress-eta">--</strong></span>
+                        <span><i class="fa-solid fa-weight-hanging"></i> Size: <strong id="playlist-progress-size">-- / --</strong></span>
+                    </div>
+                    <div class="progress-actions">
+                        <button id="btn-playlist-cancel" class="btn btn-secondary btn-cancel">
+                            <i class="fa-solid fa-xmark"></i> Cancel Batch Download
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: YOUTUBE SEARCH -->
+            <section id="tab-search" class="tab-panel">
+                <div class="panel-header">
+                    <h2>YouTube Search</h2>
+                    <p>Search keywords to find matching YouTube videos and load them directly for download.</p>
+                </div>
+
+                <!-- Search Input Card -->
+                <div class="card glass-card">
+                    <div class="input-group">
+                        <label for="search-input">Search Keywords</label>
+                        <div class="input-row">
+                            <div class="input-wrapper">
+                                <i class="fa-solid fa-magnifying-glass input-icon"></i>
+                                <input type="text" id="search-input" placeholder="e.g. funny cat videos, python tutorials..." autocomplete="off">
+                            </div>
+                            <button id="btn-search-trigger" class="btn btn-accent">
+                                <i class="fa-solid fa-magnifying-glass"></i> Search
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search Results -->
+                <div id="search-placeholder" class="placeholder-container">
+                    <i class="fa-solid fa-magnifying-glass placeholder-icon"></i>
+                    <p>Search keywords to list matching YouTube videos.</p>
+                </div>
+
+                <div id="search-loader" class="placeholder-container hidden">
+                    <i class="fa-solid fa-spinner fa-spin placeholder-icon spinner-accent"></i>
+                    <p>Searching YouTube database...</p>
+                </div>
+
+                <div id="search-results-container" class="search-results-list hidden">
+                    <!-- Search items populated by JS -->
+                </div>
+            </section>
+
+            <!-- TAB 4: LIBRARY HISTORY -->
+            <section id="tab-history" class="tab-panel">
+                <div class="panel-header flex-header">
+                    <div>
+                        <h2>Library History</h2>
+                        <p>Access your past downloads, play media files, or open their directory location.</p>
+                    </div>
+                    <button id="btn-clear-history" class="btn btn-secondary">
+                        <i class="fa-solid fa-trash-can"></i> Clear History
+                    </button>
+                </div>
+
+                <!-- History Items -->
+                <div id="history-placeholder" class="placeholder-container">
+                    <i class="fa-solid fa-clock placeholder-icon"></i>
+                    <p>No downloads recorded yet. Your successfully finished downloads will appear here.</p>
+                </div>
+
+                <div id="history-list-container" class="history-list hidden">
+                    <!-- History items populated by JS -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Status Bar -->
+    <footer class="app-footer">
+        <div class="status-indicator">
+            <span class="status-dot green" id="status-dot"></span>
+            <span id="status-text">System Ready</span>
+        </div>
+        <div class="credit">
+            <span>Powered by Eel & yt-dlp</span>
+        </div>
+    </footer>
+
+    <!-- Custom Popups / Dialogs -->
+    <div id="dialog-overlay" class="dialog-overlay hidden">
+        <div class="dialog-card glass-card">
+            <div class="dialog-header">
+                <h4 id="dialog-title">Alert</h4>
+                <button id="dialog-close" class="dialog-close-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="dialog-body">
+                <p id="dialog-message">Message text goes here.</p>
+            </div>
+            <div class="dialog-footer">
+                <button id="btn-dialog-ok" class="btn btn-accent">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
