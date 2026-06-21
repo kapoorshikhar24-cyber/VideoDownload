@@ -33,6 +33,9 @@ YT_DLP_AVAILABLE = False
 EEL_AVAILABLE = False
 yt_dlp = None
 eel = None
+CANCEL_DOWNLOAD = False
+PAUSE_DOWNLOAD = threading.Event()
+PAUSE_DOWNLOAD.set()
 
 def check_and_install_dependencies():
     """
@@ -225,8 +228,8 @@ def save_to_history(title, file_path, format_type, size):
 # 1. COMMAND LINE INTERFACE (CLI) MODE
 # ==============================================================================
 class DownloaderCLI:
-    def __init__(self, url, output_dir=None, audio_only=False, quality='best'):
-        self.url = url
+    def __init__(self, urls, output_dir=None, audio_only=False, quality='best'):
+        self.urls = urls if isinstance(urls, list) else [urls]
         self.output_dir = output_dir or get_default_download_dir()
         self.audio_only = audio_only
         self.quality = quality
@@ -272,25 +275,18 @@ class DownloaderCLI:
             print("\033[91m[-] Error: yt-dlp is required. Please install it using 'pip install yt-dlp'.\033[0m")
             return False
 
-        # Support search prefix if URL is not a direct web address
-        actual_url = self.url
-        if not self.url.startswith("http://") and not self.url.startswith("https://"):
-            print(f"[*] Searching YouTube for query: '{self.url}'...")
-            actual_url = f"ytsearch1:{self.url}"
-
-        print(f"[*] Extracting video info...")
-        
         ydl_opts = {
             'outtmpl': os.path.join(self.output_dir, '%(title)s.%(ext)s'),
             'progress_hooks': [self.progress_hook],
             'quiet': True,
             'no_warnings': True,
             'concurrent_fragment_downloads': 10,
+            'source_address': '0.0.0.0',
         }
         
         if self.audio_only:
             ydl_opts.update({
-                'format': 'bestaudio/best',
+                'format': 'bestaudio/best/b',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
@@ -299,89 +295,110 @@ class DownloaderCLI:
             })
         else:
             if self.quality == 'best':
-                ydl_opts.update({'format': 'bestvideo+bestaudio/best'})
+                ydl_opts.update({'format': 'bestvideo*+bestaudio/best/b'})
             else:
                 ydl_opts.update({
-                    'format': f'bestvideo[height<={self.quality}]+bestaudio/best[height<={self.quality}]/best'
+                    'format': f'bestvideo[height<=?{self.quality}]+bestaudio/best[height<=?{self.quality}]/bestvideo*+bestaudio/best/b'
                 })
 
-        try:
-            with yt_dlp.YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
-                info = ydl.extract_info(actual_url, download=False)
-            
-            # Handle search results
-            if 'entries' in info and info.get('_type') == 'playlist' and actual_url.startswith("ytsearch"):
-                if not info['entries']:
-                    print("\033[91m[-] No search results found.\033[0m")
-                    return False
-                # Grab the first match
-                entry = info['entries'][0]
-                actual_url = f"https://www.youtube.com/watch?v={entry['id']}"
-                print(f"[+] Found search match: {entry.get('title')}")
-                # re-extract full metadata
-                with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
-                    info = ydl.extract_info(actual_url, download=False)
+        overall_success = True
+        
+        for idx, url in enumerate(self.urls, 1):
+            if len(self.urls) > 1:
+                print(f"\n\033[96m[Batch] Processing URL {idx} of {len(self.urls)}: {url}\033[0m")
+                
+            actual_url = url
+            if not url.startswith("http://") and not url.startswith("https://"):
+                print(f"[*] Searching YouTube for query: '{url}'...")
+                actual_url = f"ytsearch1:{url}"
 
-            # Handle Playlists in CLI
-            if info.get('_type') == 'playlist':
-                print(f"\033[92m[+] Playlist Found!\033[0m")
+            print(f"[*] Extracting video info...")
+            
+            try:
+                with yt_dlp.YoutubeDL({'quiet': True, 'extract_flat': True}) as ydl:
+                    info = ydl.extract_info(actual_url, download=False)
+                
+                # Handle search results
+                if 'entries' in info and info.get('_type') == 'playlist' and actual_url.startswith("ytsearch"):
+                    if not info['entries']:
+                        print("\033[91m[-] No search results found.\033[0m")
+                        overall_success = False
+                        continue
+                    # Grab the first match
+                    entry = info['entries'][0]
+                    actual_url = f"https://www.youtube.com/watch?v={entry['id']}"
+                    print(f"[+] Found search match: {entry.get('title')}")
+                    # re-extract full metadata
+                    with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+                        info = ydl.extract_info(actual_url, download=False)
+
+                # Handle Playlists in CLI
+                if info.get('_type') == 'playlist':
+                    print(f"\033[92m[+] Playlist Found!\033[0m")
+                    print(f"     - Title: {info.get('title', 'Unknown')}")
+                    print(f"     - Videos: {len(info.get('entries', []))}")
+                    print("--------------------------------------------------------------------------------")
+                    
+                    success_count = 0
+                    for index, entry in enumerate(info['entries'], 1):
+                        if not entry:
+                            continue
+                        video_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
+                        print(f"\n[*] Downloading Video {index} of {len(info['entries'])}: {entry.get('title')}")
+                        try:
+                            with yt_dlp.YoutubeDL(ydl_opts) as ydl_dl:
+                                res_info = ydl_dl.extract_info(video_url, download=True)
+                                final_path = res_info.get('_filename')
+                                if 'requested_downloads' in res_info and res_info['requested_downloads']:
+                                    final_path = res_info['requested_downloads'][0].get('filepath', final_path)
+                                size_val = os.path.getsize(final_path) if final_path and os.path.exists(final_path) else 0
+                                save_to_history(
+                                    res_info.get('title', entry.get('title')),
+                                    final_path or "Unknown Location",
+                                    'MP3 Audio' if self.audio_only else 'MP4 Video',
+                                    format_bytes(size_val)
+                                )
+                                success_count += 1
+                        except Exception as e:
+                            print(f"\033[91m[-] Failed to download playlist item {index}: {e}\033[0m")
+                    
+                    print(f"\n\033[92m[+] Completed: Downloaded {success_count}/{len(info['entries'])} items.\033[0m\n")
+                    if success_count == 0:
+                        overall_success = False
+                    continue
+
+                # Single Video Download
+                print(f"\033[92m[+] Video Found!\033[0m")
                 print(f"     - Title: {info.get('title', 'Unknown')}")
-                print(f"     - Videos: {len(info.get('entries', []))}")
+                print(f"     - Channel: {info.get('uploader', 'Unknown')}")
+                print(f"     - Duration: {format_duration(info.get('duration'))}")
+                print(f"     - Output Directory: {self.output_dir}")
+                print(f"     - Format: {'MP3 Audio' if self.audio_only else f'MP4 Video ({self.quality}p)'}")
                 print("--------------------------------------------------------------------------------")
                 
-                success_count = 0
-                for index, entry in enumerate(info['entries'], 1):
-                    video_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
-                    print(f"\n[*] Downloading Video {index} of {len(info['entries'])}: {entry.get('title')}")
-                    try:
-                        with yt_dlp.YoutubeDL(ydl_opts) as ydl_dl:
-                            res_info = ydl_dl.extract_info(video_url, download=True)
-                            final_path = res_info.get('_filename')
-                            if 'requested_downloads' in res_info and res_info['requested_downloads']:
-                                final_path = res_info['requested_downloads'][0].get('filepath', final_path)
-                            size_val = os.path.getsize(final_path) if final_path and os.path.exists(final_path) else 0
-                            save_to_history(
-                                res_info.get('title', entry.get('title')),
-                                final_path or "Unknown Location",
-                                'MP3 Audio' if self.audio_only else 'MP4 Video',
-                                format_bytes(size_val)
-                            )
-                            success_count += 1
-                    except Exception as e:
-                        print(f"\033[91m[-] Failed to download playlist item {index}: {e}\033[0m")
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    res_info = ydl.extract_info(actual_url, download=True)
+                    final_path = res_info.get('_filename')
+                    if 'requested_downloads' in res_info and res_info['requested_downloads']:
+                        final_path = res_info['requested_downloads'][0].get('filepath', final_path)
+                    size_val = os.path.getsize(final_path) if final_path and os.path.exists(final_path) else 0
+                    save_to_history(
+                        res_info.get('title', 'Unknown'),
+                        final_path or "Unknown Location",
+                        'MP3 Audio' if self.audio_only else 'MP4 Video',
+                        format_bytes(size_val)
+                    )
+                    
+                print("\033[92m[+] Done with this item.\033[0m\n")
                 
-                print(f"\n\033[92m[+] Completed: Downloaded {success_count}/{len(info['entries'])} items.\033[0m\n")
-                return success_count > 0
+            except Exception as e:
+                print(f"\n\033[91m[-] Error occurred processing '{url}': {e}\033[0m")
+                print("\033[93m[!] Tip: If download fails with merge errors, you may need 'ffmpeg' installed on your system.\033[0m\n")
+                overall_success = False
 
-            # Single Video Download
-            print(f"\033[92m[+] Video Found!\033[0m")
-            print(f"     - Title: {info.get('title', 'Unknown')}")
-            print(f"     - Channel: {info.get('uploader', 'Unknown')}")
-            print(f"     - Duration: {format_duration(info.get('duration'))}")
-            print(f"     - Output Directory: {self.output_dir}")
-            print(f"     - Format: {'MP3 Audio' if self.audio_only else f'MP4 Video ({self.quality}p)'}")
-            print("--------------------------------------------------------------------------------")
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                res_info = ydl.extract_info(actual_url, download=True)
-                final_path = res_info.get('_filename')
-                if 'requested_downloads' in res_info and res_info['requested_downloads']:
-                    final_path = res_info['requested_downloads'][0].get('filepath', final_path)
-                size_val = os.path.getsize(final_path) if final_path and os.path.exists(final_path) else 0
-                save_to_history(
-                    res_info.get('title', 'Unknown'),
-                    final_path or "Unknown Location",
-                    'MP3 Audio' if self.audio_only else 'MP4 Video',
-                    format_bytes(size_val)
-                )
-                
-            print("\033[92m[+] All Done! Enjoy your file.\033[0m\n")
-            return True
-            
-        except Exception as e:
-            print(f"\n\033[91m[-] Error occurred: {e}\033[0m")
-            print("\033[93m[!] Tip: If download fails with merge errors, you may need 'ffmpeg' installed on your system.\033[0m\n")
-            return False
+        if len(self.urls) > 1:
+            print(f"\033[92m[+] Batch Processing Complete!\033[0m\n")
+        return overall_success
 
 
 # ==============================================================================
@@ -484,9 +501,20 @@ def register_eel_exposures():
         return folder
 
     @eel.expose
+    def pause_download():
+        global PAUSE_DOWNLOAD
+        PAUSE_DOWNLOAD.clear()
+
+    @eel.expose
+    def resume_download():
+        global PAUSE_DOWNLOAD
+        PAUSE_DOWNLOAD.set()
+
+    @eel.expose
     def cancel_download():
-        global CANCEL_DOWNLOAD
+        global CANCEL_DOWNLOAD, PAUSE_DOWNLOAD
         CANCEL_DOWNLOAD = True
+        PAUSE_DOWNLOAD.set()
 
     # Asynchronous Workers wrappers
     @eel.expose
@@ -533,6 +561,7 @@ def analyze_url_worker(url):
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
+        'source_address': '0.0.0.0',
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -567,11 +596,45 @@ def analyze_playlist_worker(url):
         eel.on_playlist_fetch_failed("yt-dlp package is missing.")()
         return
 
+    # Check for multiple URLs separated by commas or spaces
+    raw_urls = url.replace(',', ' ').split()
+    urls = [u.strip() for u in raw_urls if u.strip()]
+
+    if len(urls) > 1:
+        # Custom Playlist mode
+        entries = []
+        for u in urls:
+            try:
+                ydl_opts = {'quiet': True, 'no_warnings': True, 'skip_download': True, 'source_address': '0.0.0.0'}
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(u, download=False)
+                    entries.append({
+                        'title': info.get('title', 'Unknown Title'),
+                        'duration': info.get('duration', 0),
+                        'uploader': info.get('uploader') or info.get('channel') or 'Unknown Channel',
+                        'url': info.get('webpage_url') or u,
+                        'id': info.get('id', '')
+                    })
+            except Exception:
+                pass
+        
+        if not entries:
+            eel.on_playlist_fetch_failed("Failed to parse any valid URLs from the list.")()
+            return
+            
+        meta = {
+            'title': 'Custom URL List',
+            'entries': entries
+        }
+        eel.on_playlist_fetch_success(meta)()
+        return
+
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'extract_flat': True,
         'skip_download': True,
+        'source_address': '0.0.0.0',
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -609,6 +672,7 @@ def search_youtube_worker(query):
         'no_warnings': True,
         'extract_flat': True,
         'skip_download': True,
+        'source_address': '0.0.0.0',
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -633,9 +697,11 @@ def search_youtube_worker(query):
 # Progress hooks callbacks
 def single_progress_hook(d):
     import eel
-    global CANCEL_DOWNLOAD
+    global CANCEL_DOWNLOAD, PAUSE_DOWNLOAD
     if CANCEL_DOWNLOAD:
         raise Exception("DownloadCancelledException")
+        
+    PAUSE_DOWNLOAD.wait()
         
     if d['status'] == 'downloading':
         total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
@@ -670,6 +736,7 @@ def download_single_worker(url, dest, format_type, quality, ext, embed_metadata,
         'quiet': True,
         'no_warnings': True,
         'concurrent_fragment_downloads': 10,
+        'source_address': '0.0.0.0',
     }
     
     if embed_metadata and FFMPEG_AVAILABLE:
@@ -694,7 +761,7 @@ def download_single_worker(url, dest, format_type, quality, ext, embed_metadata,
     
     if audio_only:
         ydl_opts.update({
-            'format': 'bestaudio/best',
+            'format': 'bestaudio/best/b',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': ext,
@@ -705,11 +772,11 @@ def download_single_worker(url, dest, format_type, quality, ext, embed_metadata,
         ydl_opts.update({'merge_output_format': ext})
 
         if quality == "Best Quality":
-            ydl_opts.update({'format': 'bestvideo+bestaudio/best'})
+            ydl_opts.update({'format': 'bestvideo*+bestaudio/best/b'})
         else:
             height = quality.replace("p", "")
             ydl_opts.update({
-                'format': f'bestvideo[height<={height}]+bestaudio/best[height<={height}]/best'
+                'format': f'bestvideo[height<=?{height}]+bestaudio/best[height<=?{height}]/bestvideo*+bestaudio/best/b'
             })
 
     try:
@@ -742,9 +809,11 @@ def download_single_worker(url, dest, format_type, quality, ext, embed_metadata,
 
 def playlist_progress_hook(d):
     import eel
-    global CANCEL_DOWNLOAD
+    global CANCEL_DOWNLOAD, PAUSE_DOWNLOAD
     if CANCEL_DOWNLOAD:
         raise Exception("DownloadCancelledException")
+        
+    PAUSE_DOWNLOAD.wait()
         
     if d['status'] == 'downloading':
         total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
@@ -791,6 +860,7 @@ def download_playlist_worker(entries, dest, format_type, quality, ext, embed_met
             'quiet': True,
             'no_warnings': True,
             'concurrent_fragment_downloads': 10,
+            'source_address': '0.0.0.0',
         }
         
         if embed_metadata and FFMPEG_AVAILABLE:
@@ -815,7 +885,7 @@ def download_playlist_worker(entries, dest, format_type, quality, ext, embed_met
         
         if audio_only:
             ydl_opts.update({
-                'format': 'bestaudio/best',
+                'format': 'bestaudio/best/b',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': ext,
@@ -826,11 +896,11 @@ def download_playlist_worker(entries, dest, format_type, quality, ext, embed_met
             ydl_opts.update({'merge_output_format': ext})
 
             if quality == "Best Quality":
-                ydl_opts.update({'format': 'bestvideo+bestaudio/best'})
+                ydl_opts.update({'format': 'bestvideo*+bestaudio/best/b'})
             else:
                 height = quality.replace("p", "")
                 ydl_opts.update({
-                    'format': f'bestvideo[height<={height}]+bestaudio/best[height<={height}]/best'
+                    'format': f'bestvideo[height<=?{height}]+bestaudio/best[height<=?{height}]/bestvideo*+bestaudio/best/b'
                 })
         
         try:
@@ -873,7 +943,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         # Simple CLI parser
         args = sys.argv[1:]
-        url = None
+        urls = []
         audio_only = False
         quality = 'best'
         output_dir = None
@@ -890,20 +960,21 @@ if __name__ == "__main__":
                 output_dir = args[i+1]
                 i += 1
             elif not arg.startswith('-'):
-                url = arg
+                urls.append(arg)
             i += 1
             
-        if url:
-            cli = DownloaderCLI(url, output_dir, audio_only, quality)
+        if urls:
+            cli = DownloaderCLI(urls, output_dir, audio_only, quality)
             success = cli.run()
             sys.exit(0 if success else 1)
         else:
             print("Usage Examples:")
-            print("  python downloader.py <YouTube_URL>                   (Downloads best quality video)")
-            print("  python downloader.py <YouTube_URL> -a                (Downloads high-quality MP3 audio)")
-            print("  python downloader.py <YouTube_URL> -q 720            (Downloads maximum 720p resolution video)")
-            print("  python downloader.py <YouTube_URL> -o \"C:\\path\\\"    (Specifies output destination)")
-            print("  python downloader.py \"search query\"                 (Searches YouTube and downloads top result)")
+            print("  python downloader_1.3.py <YouTube_URL>                   (Downloads best quality video)")
+            print("  python downloader_1.3.py <URL1> <URL2> ...               (Batch downloads multiple URLs)")
+            print("  python downloader_1.3.py <YouTube_URL> -a                (Downloads high-quality MP3 audio)")
+            print("  python downloader_1.3.py <YouTube_URL> -q 720            (Downloads maximum 720p resolution video)")
+            print("  python downloader_1.3.py <YouTube_URL> -o \"C:\\path\\\"    (Specifies output destination)")
+            print("  python downloader_1.3.py \"search query\"                 (Searches YouTube and downloads top result)")
             print("\nOr run without arguments to launch the modern graphical desktop interface!")
             sys.exit(1)
             

@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let ffmpegAvailable = false;
 let currentPlaylistInfo = null;
+let isDownloadPaused = false;
 
 // Application Initialization
 function initApp() {
@@ -389,11 +390,13 @@ function setupEventHandlers() {
     document.getElementById('btn-single-analyze').addEventListener('click', triggerSingleAnalysis);
     document.getElementById('btn-single-download').addEventListener('click', startSingleDownload);
     document.getElementById('btn-single-cancel').addEventListener('click', cancelActiveDownload);
+    document.getElementById('btn-single-pause').addEventListener('click', togglePauseDownload);
 
     // Playlist Analysis & Download
     document.getElementById('btn-playlist-analyze').addEventListener('click', triggerPlaylistAnalysis);
     document.getElementById('btn-playlist-download').addEventListener('click', startPlaylistDownload);
     document.getElementById('btn-playlist-cancel').addEventListener('click', cancelActiveDownload);
+    document.getElementById('btn-playlist-pause').addEventListener('click', togglePauseDownload);
     
     // Select all/none in playlist checklist
     document.getElementById('btn-playlist-select-all').addEventListener('click', () => {
@@ -474,6 +477,9 @@ function startSingleDownload() {
     document.getElementById('single-progress-size').textContent = '-- / --';
     document.getElementById('single-progress-status').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Initializing Download...';
     
+    isDownloadPaused = false;
+    document.getElementById('btn-single-pause').innerHTML = '<i class="fa-solid fa-pause"></i> Pause Download';
+
     disableInputRow('single', true);
     updateStatus('Launching downloader...', 'blue');
 
@@ -552,6 +558,9 @@ function startPlaylistDownload() {
     document.getElementById('playlist-progress-eta').textContent = 'Calculating...';
     document.getElementById('playlist-progress-size').textContent = '-- / --';
     
+    isDownloadPaused = false;
+    document.getElementById('btn-playlist-pause').innerHTML = '<i class="fa-solid fa-pause"></i> Pause Batch Download';
+
     disableInputRow('playlist', true);
     updateStatus('Launching playlist downloader...', 'blue');
 
@@ -567,6 +576,25 @@ function cancelActiveDownload() {
     if (confirm('Are you sure you want to cancel the active download?')) {
         updateStatus('Cancelling download...', 'red');
         eel.cancel_download();
+    }
+}
+
+// Toggle Pause/Resume for Active Download
+function togglePauseDownload() {
+    isDownloadPaused = !isDownloadPaused;
+    const btnSinglePause = document.getElementById('btn-single-pause');
+    const btnPlaylistPause = document.getElementById('btn-playlist-pause');
+    
+    if (isDownloadPaused) {
+        updateStatus('Download paused...', 'orange');
+        eel.pause_download();
+        if (btnSinglePause) btnSinglePause.innerHTML = '<i class="fa-solid fa-play"></i> Resume Download';
+        if (btnPlaylistPause) btnPlaylistPause.innerHTML = '<i class="fa-solid fa-play"></i> Resume Batch Download';
+    } else {
+        updateStatus('Resuming download...', 'blue');
+        eel.resume_download();
+        if (btnSinglePause) btnSinglePause.innerHTML = '<i class="fa-solid fa-pause"></i> Pause Download';
+        if (btnPlaylistPause) btnPlaylistPause.innerHTML = '<i class="fa-solid fa-pause"></i> Pause Batch Download';
     }
 }
 

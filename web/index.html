@@ -33,7 +33,7 @@
                 </button>
                 <button class="nav-tab" data-tab="playlist">
                     <i class="fa-solid fa-list-check"></i>
-                    <span>Playlist Batch Download</span>
+                    <span>Batch / Playlist Download</span>
                 </button>
                 <button class="nav-tab" data-tab="search">
                     <i class="fa-solid fa-magnifying-glass"></i>
@@ -203,6 +203,9 @@
                         <span><i class="fa-solid fa-weight-hanging"></i> Size: <strong id="single-progress-size">-- / --</strong></span>
                     </div>
                     <div class="progress-actions">
+                        <button id="btn-single-pause" class="btn btn-secondary btn-pause">
+                            <i class="fa-solid fa-pause"></i> Pause Download
+                        </button>
                         <button id="btn-single-cancel" class="btn btn-secondary btn-cancel">
                             <i class="fa-solid fa-xmark"></i> Cancel Download
                         </button>
@@ -213,18 +216,18 @@
             <!-- TAB 2: PLAYLIST BATCH -->
             <section id="tab-playlist" class="tab-panel">
                 <div class="panel-header">
-                    <h2>Playlist Batch Download</h2>
-                    <p>Enter a YouTube playlist link, select videos, and download them all in one click.</p>
+                    <h2>Batch / Playlist Download</h2>
+                    <p>Enter a YouTube playlist link or multiple video URLs (comma/space separated), select videos, and download them all in one click.</p>
                 </div>
 
                 <!-- Input card -->
                 <div class="card glass-card">
                     <div class="input-group">
-                        <label for="playlist-url">Playlist URL</label>
+                        <label for="playlist-url">Playlist / Multiple URLs</label>
                         <div class="input-row">
                             <div class="input-wrapper">
                                 <i class="fa-solid fa-list input-icon"></i>
-                                <input type="text" id="playlist-url" placeholder="https://www.youtube.com/playlist?list=..." autocomplete="off">
+                                <input type="text" id="playlist-url" placeholder="Playlist URL, or comma-separated URLs..." autocomplete="off">
                             </div>
                             <button id="btn-playlist-paste" class="btn btn-secondary" title="Paste from Clipboard">
                                 <i class="fa-solid fa-paste"></i> Paste
@@ -239,7 +242,7 @@
                 <!-- Details & Options (hidden until analyzed) -->
                 <div id="playlist-placeholder" class="placeholder-container">
                     <i class="fa-solid fa-list-ol placeholder-icon"></i>
-                    <p>Paste a playlist link and click 'Analyze Playlist' to load individual items.</p>
+                    <p>Paste a playlist link or multiple URLs and click 'Analyze Playlist' to load individual items.</p>
                 </div>
 
                 <div id="playlist-details-container" class="details-container hidden">
@@ -368,6 +371,9 @@
                         <span><i class="fa-solid fa-weight-hanging"></i> Size: <strong id="playlist-progress-size">-- / --</strong></span>
                     </div>
                     <div class="progress-actions">
+                        <button id="btn-playlist-pause" class="btn btn-secondary btn-pause">
+                            <i class="fa-solid fa-pause"></i> Pause Batch Download
+                        </button>
                         <button id="btn-playlist-cancel" class="btn btn-secondary btn-cancel">
                             <i class="fa-solid fa-xmark"></i> Cancel Batch Download
                         </button>
